@@ -1,160 +1,212 @@
 import React, { useState, useEffect } from "react";
 import { csv } from "d3-fetch";
-import { LineChart } from 'react-chartkick'
-import ds11 from "./ds11Parsed.csv"
-import ds237 from "./ds237Parsed.csv"
+import { ColumnChart } from 'react-chartkick'
+import { Chart } from "react-google-charts";
+import populationData from "./populationData.csv"
 import 'chart.js'
 
 
+const percentChange = (prev, next) => {
+	const x = parseInt(next) / parseInt(prev);
+	return Math.floor(((parseInt(next) > parseInt(prev) ? x - 1 : (1 - x) * -1)) * 100);
+}
+
+
 const MapChart = () => {
-	const [stateData, setStateData] = useState([]);
-	const [state, setState] = useState("California");
-	const [county, setCounty] = useState("Alameda");
-	const [stateLineData, setStateLineData] = useState({});
-	const [countyLineData, setCountyLineData] = useState({});
-	const [selection, setSelection] = useState("land");
+	const [appStateData, setAppStateData] = useState(false);
+	const [tribe, setTribe] = useState("Apache");
+	const [statesSlect, setState] = useState(true);
+	const [stateColumnData, setStateColumnData] = useState(["State", "Population"]);
+	const [tribeColumnData, setTribeColumnData] = useState(["State", "Population"]);
+	const [selection, setSelection] = useState("y1990");
 
 
 	useEffect(() => {
-		csv(ds11).then(countiesLandData => {
-			const data = {};
-			countiesLandData.map((county) => {
-				if (!data[county.STATE]) {
-					data[county.STATE] = { counties: {}, averageYearlyValue: {}, marriages: {}, divorces: {} }
+		csv(populationData).then(population => {
+			const stateData = {};
+			const tribeData = {};
+			population.columns.map((col) => {
+				if (col !== "year" && col !== "state") {
+					tribeData[col] = {
+						y1990: {}, y2000: {}, y2010: {}
+					};
 				}
-				if (!data[county.STATE].counties[county.COUNTY]) {
-					data[county.STATE].counties[county.COUNTY] = {
-						name: county.COUNTY,
-						code: county.COUNTYCODE,
-						averageYearlyValue: {},
-						marriages: {},
-						divorces: {},
-					}
-				}
-				data[county.STATE].counties[county.COUNTY].averageYearlyValue[county.YEAR] = parseInt(county.AVERAGEVALUE);
-				if (!data[county.STATE].averageYearlyValue[county.YEAR]) {
-					data[county.STATE].averageYearlyValue[county.YEAR] = { counties: 1, value: parseInt(county.AVERAGEVALUE) };
-				} else {
-					data[county.STATE].averageYearlyValue[county.YEAR].counties++;
-					data[county.STATE].averageYearlyValue[county.YEAR].value += parseInt(county.AVERAGEVALUE);
-				}
-			})
-			Object.keys(data).map((stateName) => {
-				Object.keys(data[stateName].averageYearlyValue).map((year) => {
-					data[stateName].averageYearlyValue[year].value = Math.round(data[stateName].averageYearlyValue[year].value / data[stateName].averageYearlyValue[year].counties);
-				})
-			})
-
-			const stateLineData = {}
-			Object.keys(data[state].averageYearlyValue).map((year) => {
-				stateLineData[year] = data[state].averageYearlyValue[year].value;
-			})
-			setStateLineData(stateLineData);
-
-			const countyLineData = {};
-			Object.keys(data[state].counties[county].averageYearlyValue).map((year) => {
-				countyLineData[year] = data[state].counties[county].averageYearlyValue[year];
+				return;
 			});
-			setCountyLineData(countyLineData);
-			return data;
-		}).then((landData) => {
-			csv(ds237).then(countiesMarriageData => {
-				const data = { ...landData };
-				countiesMarriageData.map((county) => {
-					if (!data[county.STATE]) {
-						data[county.STATE] = { counties: {}, averageYearlyValue: {}, marriages: {}, divorces: {} }
-					}
-					if (!data[county.STATE].counties[county.COUNTY]) {
-						data[county.STATE].counties[county.COUNTY] = {
-							name: county.COUNTY,
-							code: county.COUNTYCODE,
-							averageYearlyValue: {},
-							marriages: {},
-							divorces: {},
+			population.map((row) => {
+				if (!stateData[row.state]) {
+					stateData[row.state] = {};
+				}
+				Object.keys(row).map((col) => {
+					if (tribeData[col]) {
+						tribeData[col][`y${row.year}`][row.state] = row[col];
+						if (stateData[row.state][col]) {
+							stateData[row.state][col][`y${row.year}`] = row[col];
+						} else {
+							stateData[row.state][col] = { [`y${row.year}`]: row[col] };
 						}
 					}
-					data[county.STATE].counties[county.COUNTY].marriages[county.YEAR] = parseInt(county.MARRIAGES);
-					data[county.STATE].counties[county.COUNTY].divorces[county.YEAR] = parseInt(county.DIVORCES);
-					if (!data[county.STATE].marriages[county.YEAR]) {
-						data[county.STATE].marriages[county.YEAR] = (parseInt(county.MARRIAGES) || 0);
-					} else {
-						data[county.STATE].marriages[county.YEAR] += (parseInt(county.MARRIAGES) || 0);
+					return;
+				});
+				return;
+			});
+			console.log(stateData, tribeData);
+
+			Object.keys(stateData).map((state) => {
+				stateData[state].metaData = {
+					totalPopulation: {
+						y1990: 0,
+						y2000: 0,
+						y2010: 0
+					},
+					change: {
+						y2000: {
+							percentChange: 0,
+							largestGrowth: 0,
+							largestDecline: 0
+						},
+						y2010: {
+							percentChange: 0,
+							largestGrowth: 0,
+							largestDecline: 0
+						},
 					}
-					if (!data[county.STATE].divorces[county.YEAR]) {
-						data[county.STATE].divorces[county.YEAR] = (parseInt(county.DIVORCES) || 0);
-					} else {
-						data[county.STATE].divorces[county.YEAR] += (parseInt(county.DIVORCES) || 0);
+				};
+				Object.keys(stateData[state]).map((stateTribe) => {
+					// console.log(parseInt(stateData[state][stateTribe].y1990), stateData[state][stateTribe].y1990)
+					stateData[state].metaData.totalPopulation.y1990 += parseInt(stateData[state][stateTribe].y1990) || 0;
+					stateData[state].metaData.totalPopulation.y2000 += parseInt(stateData[state][stateTribe].y2000) || 0;
+					stateData[state].metaData.totalPopulation.y2010 += parseInt(stateData[state][stateTribe].y2010) || 0;
+					const y2000PercentChange = percentChange(stateData[state][stateTribe].y1990, stateData[state][stateTribe].y2000);
+					const y2010PercentChange = percentChange(stateData[state][stateTribe].y2000, stateData[state][stateTribe].y2010);
+					if (stateData[state].metaData.change.y2000.largestGrowth === 0) {
+						stateData[state].metaData.change.y2000.largestGrowth = [stateTribe, y2000PercentChange];
 					}
+					if (stateData[state].metaData.change.y2010.largestGrowth === 0) {
+						stateData[state].metaData.change.y2010.largestGrowth = [stateTribe, y2010PercentChange];
+					}
+					if (stateData[state].metaData.change.y2000.largestDecline === 0) {
+						stateData[state].metaData.change.y2000.largestDecline = [stateTribe, y2000PercentChange];
+					}
+					if (stateData[state].metaData.change.y2010.largestDecline === 0) {
+						stateData[state].metaData.change.y2010.largestDecline = [stateTribe, y2010PercentChange]
+					}
+					stateData[state].metaData.change.y2000.largestGrowth = y2000PercentChange > stateData[state].metaData.change.y2000.largestGrowth[1] ? [stateTribe, y2000PercentChange] : stateData[state].metaData.change.y2000.largestGrowth;
+					stateData[state].metaData.change.y2010.largestGrowth = y2010PercentChange > stateData[state].metaData.change.y2010.largestGrowth[1] ? [stateTribe, y2010PercentChange] : stateData[state].metaData.change.y2010.largestGrowth;
+					stateData[state].metaData.change.y2000.largestDecline = y2000PercentChange < stateData[state].metaData.change.y2000.largestDecline[1] ? [stateTribe, y2000PercentChange] : stateData[state].metaData.change.y2000.largestDecline;
+					stateData[state].metaData.change.y2010.largestDecline = y2010PercentChange < stateData[state].metaData.change.y2010.largestDecline[1] ? [stateTribe, y2010PercentChange] : stateData[state].metaData.change.y2010.largestDecline;
+					return;
+				});
+				stateData[state].metaData.change.y2000.percentChange = percentChange(stateData[state].metaData.totalPopulation.y1990, stateData[state].metaData.totalPopulation.y2000);
+				stateData[state].metaData.change.y2010.percentChange = percentChange(stateData[state].metaData.totalPopulation.y2000, stateData[state].metaData.totalPopulation.y2010);
+				return;
+			});
+
+			Object.keys(tribeData).map((tribe) => {
+				tribeData[tribe].metaData = {
+					totalPopulation: {
+						y1990: 0,
+						y2000: 0,
+						y2010: 0
+					},
+					change: {
+						largestGrowth: 0,
+						y2000: {
+							percentChange: 0,
+							largestGrowth: 0,
+							largestDecline: 0
+						},
+						y2010: {
+							percentChange: 0,
+							largestGrowth: 0,
+							largestDecline: 0
+						},
+					}
+				};
+
+				Object.keys(tribeData[tribe]).map((year) => {
+					if (year !== "metaData") {
+						let yearPopulation = 0;
+						Object.keys(tribeData[tribe][year]).map((state) => {
+							yearPopulation += parseInt(tribeData[tribe][year][state]);
+						})
+						tribeData[tribe].metaData.totalPopulation[year] = yearPopulation;
+					}
+					return;
 				})
-				setStateData(data);
-			})
+				Object.keys(stateData).map((state) => {
+					const y2000PercentChange = percentChange(tribeData[tribe].y1990[state], tribeData[tribe].y2000[state]);
+					const y2010PercentChange = percentChange(tribeData[tribe].y2000[state], tribeData[tribe].y2010[state]);
+					const totalGrowth = percentChange(tribeData[tribe].y1990[state], tribeData[tribe].y2010[state]);
+					if (tribeData[tribe].metaData.change.y2000.largestGrowth === 0) {
+						tribeData[tribe].metaData.change.y2000.largestGrowth = [state, y2000PercentChange];
+					}
+					if (tribeData[tribe].metaData.change.y2010.largestGrowth === 0) {
+						tribeData[tribe].metaData.change.y2010.largestGrowth = [state, y2010PercentChange];
+					}
+					if (tribeData[tribe].metaData.change.y2000.largestDecline === 0) {
+						tribeData[tribe].metaData.change.y2000.largestDecline = [state, y2000PercentChange];
+					}
+					if (tribeData[tribe].metaData.change.y2010.largestDecline === 0) {
+						tribeData[tribe].metaData.change.y2010.largestDecline = [state, y2010PercentChange];
+					}
+					if (tribeData[tribe].metaData.change.largestGrowth === 0) {
+						tribeData[tribe].metaData.change.largestGrowth = [state, totalGrowth];
+					}
+					tribeData[tribe].metaData.change.y2000.largestGrowth = y2000PercentChange > tribeData[tribe].metaData.change.y2000.largestGrowth[1] ? [state, y2000PercentChange] : tribeData[tribe].metaData.change.y2000.largestGrowth;
+					tribeData[tribe].metaData.change.y2010.largestGrowth = y2010PercentChange > tribeData[tribe].metaData.change.y2010.largestGrowth[1] ? [state, y2010PercentChange] : tribeData[tribe].metaData.change.y2010.largestGrowth;
+					tribeData[tribe].metaData.change.y2000.largestDecline = y2000PercentChange < tribeData[tribe].metaData.change.y2000.largestDecline[1] ? [state, y2000PercentChange] : tribeData[tribe].metaData.change.y2000.largestDecline;
+					tribeData[tribe].metaData.change.y2010.largestDecline = y2010PercentChange < tribeData[tribe].metaData.change.y2000.largestDecline[1] ? [state, y2010PercentChange] : tribeData[tribe].metaData.change.y2010.largestDecline;
+
+					tribeData[tribe].metaData.change.largestGrowth = totalGrowth > tribeData[tribe].metaData.change.largestGrowth[1] ? [state, totalGrowth] : tribeData[tribe].metaData.change.largestGrowth;
+					return;
+				})
+				tribeData[tribe].metaData.change.y2000.percentChange = percentChange(tribeData[tribe].metaData.totalPopulation.y1990, tribeData[tribe].metaData.totalPopulation.y2000);
+				tribeData[tribe].metaData.change.y2010.percentChange = percentChange(tribeData[tribe].metaData.totalPopulation.y2000, tribeData[tribe].metaData.totalPopulation.y2010);
+				tribeData[tribe].metaData.totalPopulation.growth = percentChange(tribeData[tribe].metaData.totalPopulation.y1990, tribeData[tribe].metaData.totalPopulation.y2010);
+				return;
+			});
+
+
+			const stateColumnData = [["State", "Population"]]
+			Object.keys(stateData).map((state) => {
+				stateColumnData.push([state, parseInt(stateData[state].metaData.totalPopulation[selection])]);
+			});
+			setStateColumnData(stateColumnData);
+
+			setAppStateData({ tribeData, stateData });
+			return { tribeData, stateData };
 		});
 	}, []);
 
-	const displayStateLandData = (stateName) => {
-		const stateLineData = {}
-		Object.keys(stateData[stateName].averageYearlyValue).map((year) => {
-			stateLineData[year] = stateData[stateName].averageYearlyValue[year].value;
-		})
-		setStateLineData(stateLineData);
+	const displayStateLandData = (selection) => {
+		const stateColumnData = [["State", "Population"]]
+		Object.keys(appStateData.stateData).map((state) => {
+			if (parseInt(appStateData.stateData[state].metaData.totalPopulation[selection])) {
+				stateColumnData.push([state, parseInt(appStateData.stateData[state].metaData.totalPopulation[selection])]);
+			}
+		});
+		setStateColumnData(stateColumnData);
+		setState(true);
 		return;
 	}
 
-	const displayStateMarriageData = (stateName) => {
-		const stateLineData = [];
-		const marriages = {
-			name: "Marriages",
-			data: {}
-		}
-		const divorces = {
-			name: "Divorces",
-			data: {}
-		}
-		Object.keys(stateData[stateName].marriages).map((year) => {
-			marriages.data[year] = stateData[stateName].marriages[year];
+	const displayTribeLandData = (selection) => {
+		const stateColumnData = [["State", "Population"]];
+		Object.keys(appStateData.stateData).map((state) => {
+			console.log(appStateData.stateData, state, tribe)
+			if (parseInt(appStateData.stateData[state][tribe][selection])) {
+				stateColumnData.push([state, parseInt(appStateData.stateData[state][tribe][selection])]);
+			}
 		});
-		Object.keys(stateData[stateName].divorces).map((year) => {
-			divorces.data[year] = stateData[stateName].divorces[year];
-		});
-		stateLineData.push(marriages);
-		stateLineData.push(divorces);
-		setStateLineData(stateLineData);
+		setStateColumnData(stateColumnData);
+		setState(false);
 		return;
 	}
 
-	const displayCountyLandData = (countyName) => {
-		const countyLineData = {};
-		Object.keys(stateData[state].counties[countyName].averageYearlyValue).map((year) => {
-			countyLineData[year] = stateData[state].counties[countyName].averageYearlyValue[year];
-		});
-		setCountyLineData(countyLineData);
-		return;
-	}
-
-	const displayCountyMarriageData = (countyName) => {
-		const countyLineData = [];
-		const marriages = {
-			name: "Marriages",
-			data: {}
-		}
-		const divorces = {
-			name: "Divorces",
-			data: {}
-		}
-		Object.keys(stateData[state].counties[countyName].marriages).map((year) => {
-			marriages.data[year] = stateData[state].counties[countyName].marriages[year];
-		});
-		Object.keys(stateData[state].counties[countyName].divorces).map((year) => {
-			divorces.data[year] = stateData[state].counties[countyName].divorces[year];
-		});
-		countyLineData.push(marriages);
-		countyLineData.push(divorces);
-		setCountyLineData(countyLineData);
-		return;
-	}
 
 	const isSelected = (regionName) => {
-		return (regionName === state || regionName === county) ? " bg-light-gray " : "";
+		return (regionName === tribe) ? " bg-light-gray " : "";
 	}
 
 	const sideNav = (region, isCounty) => {
@@ -164,25 +216,8 @@ const MapChart = () => {
 					{Object.keys(region).sort().map((regionName, index) => {
 						return (
 							<div key={index} className={" ma2 pa2 tl bb " + isSelected(regionName)} onClick={() => {
-								if (selection === "land") {
-									if (isCounty) {
-										setCounty(regionName);
-										displayCountyLandData(regionName);
-									} else {
-										setState(regionName);
-										setCounty(Object.keys(stateData[regionName].counties)[0]);
-										displayStateLandData(regionName);
-									}
-								} else if (selection === "marriage") {
-									if (isCounty) {
-										setCounty(regionName);
-										displayCountyMarriageData(regionName);
-									} else {
-										setState(regionName);
-										setCounty(Object.keys(stateData[regionName].counties)[0]);
-										displayStateMarriageData(regionName);
-									}
-								}
+								setTribe(regionName);
+								displayTribeLandData(selection);
 							}}>
 								{regionName}
 							</div>
@@ -193,71 +228,81 @@ const MapChart = () => {
 		)
 	}
 
-	if (!stateData || !stateData[state]) {
+	if (!appStateData || !appStateData.stateData) {
 		return (<div>loading</div>);
 	}
+	console.log(stateColumnData, appStateData)
 
 	return (
 		<div className="flex">
 			<div className="bg-black-90 fixed w-100 ph3 pv3 pv4-ns ph4-m ph5-l absolute">
 				<nav className="f6 fw6 ttu tracked">
-					<a className="link dim white dib mr3" href="#" title="head">A look at Real Estate Value of Farmland and Marriage/Divorce rates in The West</a>
+					<a className="link dim white dib mr3" href="#" title="head">Native American Populations</a>
 				</nav>
 			</div>
-			<div className="mt6 fl tl mh2 w-50">
-				<h1 id="overview">Overview</h1>
-				<p>The American West has been long seen as the land of opportunity. The Gold Rush of the mid 1800&#39;s sparked a mass migration westward, the American Public was inspired to manifest its destiny. This migration highlighted the need for federal involvement in facilitating access to California and the The West as a whole, such as with the Mail Act of 1857 and later the Railroad Act of 1862.</p>
-				<p>Patricia Limerick, a leading historian of The West, argues that real estate is the emotional center of the region, a stand-in for struggles over resources -- oil, water, minerals, etc. Therefore, this examination of the of the changes in the value of farmland over-time paint a deeper picture, indicative of greater issues at play.</p>
-				<p>This analysis attempted to find any correlation between trends in land value and marriage/divorce rates in The West at the county level. </p>
-				<h2 id="findings">Findings</h2>
-				<p>No significant statistical relationship was found comparing land value trends to marriage/divorce rates. </p>
-				<p>Examining the two metrics separately, however, shows significant relationships between historical events and the metrics under examination.</p>
-				<h3 id="marriage-divorce-rates">Marriage/Divorce Rates</h3>
-				<p>World War 1 and World War 2 show the greatest impact on marriage/divorce rates. However, across the board, in 1973 there is a dip in marriage rates, likely a result of the Supreme Court Case Row v Wade. We also see anomalies such as the dramatic spike in Nevada marriages following the founding of Las Vegas after World War 2.</p>
-				<h3 id="farm-land-value">Farm Land Value</h3>
-				<p>Similarly to marriage/divorce rates, the World Wars saw increases in population in The West, which saw an increase in land value. California counties, such as Inyo and Humboldt county saw dramatic increases in value in the later half of the 1920, then sharp drops. Trends like these can be explained by the formation of Water Districts increasing the viability of farmland, and the following Great Depression and New Deal legislation under F.D.R.</p>
-				<h2 id="conclusion">Conclusion</h2>
-				<p>The history of The West can not be understood by simply examining major events. Nor would the story be complete by focusing solely on statistical data. The history of any place is how major event affect a given place over time. The emotional toll of the World Wars are seen in the numbers of marriages following the soldiers return home. The rises in property value in desert areas are reflections of government works projects.</p>
-				<p>To understand History, we must understand the causes of major events, and their long lasting consequences. </p>
-				<h3 id="about-this-project">About This Project</h3>
-				<p>All census data was pulled from <a href="https://www.nhgis.org/">IPUMS NHGIS</a>. </p>
-				<p>The CSV files came individually for each year of data, and can be examined <a href="https://drive.google.com/drive/folders/1ic3wIJ_2k7kiHNirwUhZ4GBJyIjPnuqw?usp=sharing">here</a></p>
-				<p>This project is hosted through github pages. All source code for this project was written by me (Nicolas Toscano) and can be found <a href="https://github.com/ntoscano/the-west">here</a>.</p>
-				<p>I combined all years of land data and marriage data with javascript as seen in <a href="https://github.com/ntoscano/the-west/blob/master/cleaner.js">cleaner.js</a>.</p>
-				<p>I used google sheets for additional data cleanup, the sheet can be <a href="https://docs.google.com/spreadsheets/d/1it1id_mfqjPzspP9MKAUWZjMCK7fj1WS14TQ8f9-vbQ/edit?usp=sharing">found here</a>. </p>
-				<p>I would have liked to make use of additional data sets I acquired, such as one tracking infant mortality, or mortality rate categorized by race and county. However, each data set required a significant amount of processing and would have increased the complexity of the project without adding much substance.</p>
-
-			</div>
-			<div className="w-10 bl mt6">
-				{sideNav(stateData, false)}
-			</div>
 			<div className="w-100">
-				<div className="flex mt6 tc justify-center">
-					<div className={"w-20 ba mh3 " + (selection === "land" ? " bg-light-gray " : "")} onClick={() => {
-						setSelection("land")
-						displayCountyLandData(county);
-						displayStateLandData(state);
-					}}> Land Value </div>
-					<div className={"w-20 ba mh3 " + (selection === "marriage" ? " bg-light-gray " : "")} onClick={() => {
-						setSelection("marriage")
-						displayCountyMarriageData(county);
-						displayStateMarriageData(state);
-					}}> Marriage Info</div>
-				</div>
-				<div className="flex w-100">
-					<div className="w-90 mh3">
-						<div className={"f3 mh2 mt5 tc mb2 justify-center"}>State: {state}</div>
-						<div className={""}>
-							{<LineChart data={stateLineData} />}
-						</div>
-						<div className="mt5 bt bl">
-							<div className="f3 mb3 tc mt2 justify-center">County: {county}</div>
-							<div className="flex">
-								<div className={"w-20 f3 mh2 h-100"} style={{ height: "500px" }}>
-									{sideNav(stateData[state].counties, true)}
+				<div className="flex mt6 tc justify-center"></div>
+				<div className="flex w-100 mb5">
+					<div className={"w-20 f3 mh2 h-100 "} style={{ height: "900px" }}>
+						{sideNav(appStateData.tribeData, true)}
+					</div>
+
+					<div className="w-90 mh3 dib">
+						<div className="f3 mb3 tc mt2 justify-center relative">{statesSlect ? `All Nations - ${selection.slice(1)}` : `${tribe} - ${selection.slice(1)}`}</div>
+						<div className={"ba mh3 tc justify-center relative" + (!statesSlect ? " bg-light-gray " : "")} onClick={() => {
+							setSelection("y2010")
+							displayStateLandData(selection);
+						}}> View Population of all Nations</div>
+						<div className="mt6 tl mh2">
+							<div className="flex ba1 b--black bw1">
+								<div className="flex-column w-60">
+									<div className="mv2 pv1 bg-light-gray">Nation:</div>
+									<div className="mv2 pv1">Population Growth from 1990 - 2010: </div>
+									<div className="mv2 pv1 bg-light-gray">Location and Percent of Largest Growth:</div>
 								</div>
-								<div className={"w-80 mt5"}>
-									{<LineChart data={countyLineData} />}
+								<div className="flex-column w-40">
+									<div className="mv2 pv1 bg-light-gray"> {tribe}</div>
+									<div className="mv2 pv1">{appStateData.tribeData[tribe].metaData.totalPopulation.growth}%</div>
+									<div className="mv2 pv1 bg-light-gray	">
+										{appStateData.tribeData[tribe].metaData.change.largestGrowth[1]}% - {appStateData.tribeData[tribe].metaData.change.largestGrowth[0]}
+									</div>
+								</div>
+							</div>
+						</div>
+						<div className={"mt5 dib w-50"}>
+							{<Chart chartType="GeoChart" options={{ resolution: 'provinces', region: "US", colorAxis: { colors: ['#00853f', 'black', '#e31b23'] }, backgroundColor: '#81d4fa', defaultColor: '#f5f5f5' }} data={stateColumnData} mapsApiKey="AIzaSyDoLW0la28ndzPjo2B0BybPZpJRi6vmbqI" />}
+						</div>
+						<div className="">
+							<div className="flex mt3 justify-center">
+								<div className={"w-20 ba mh3 " + (selection === "y1990" ? " bg-light-gray " : "")} onClick={() => {
+									setSelection("y1990")
+									if (statesSlect) {
+										displayStateLandData(selection);
+									} else {
+										displayTribeLandData(selection);
+									}
+								}}>1990</div>
+								<div className={"w-20 ba mh3 " + (selection === "y2000" ? " bg-light-gray " : "")} onClick={() => {
+									setSelection("y2000")
+									if (statesSlect) {
+										displayStateLandData(selection);
+									} else {
+										displayTribeLandData(selection);
+									}
+								}}>2000</div>
+								<div className={"w-20 ba mh3 " + (selection === "y2010" ? " bg-light-gray " : "")} onClick={() => {
+									setSelection("y2010")
+									if (statesSlect) {
+										displayStateLandData(selection);
+									} else {
+										displayTribeLandData(selection);
+									}
+								}}> 2010</div>
+
+							</div>
+							<div className="">
+								<div className={"flex justify-center"}>
+									{<ColumnChart data={stateColumnData} />}
 								</div>
 							</div>
 						</div>
