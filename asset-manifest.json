@@ -1,0 +1,23 @@
+{
+  "files": {
+    "main.css": "/NativeAmericanLand/static/css/main.ca02da1d.chunk.css",
+    "main.js": "/NativeAmericanLand/static/js/main.42410e84.chunk.js",
+    "main.js.map": "/NativeAmericanLand/static/js/main.42410e84.chunk.js.map",
+    "runtime-main.js": "/NativeAmericanLand/static/js/runtime-main.c2247813.js",
+    "runtime-main.js.map": "/NativeAmericanLand/static/js/runtime-main.c2247813.js.map",
+    "static/js/2.a61b7cce.chunk.js": "/NativeAmericanLand/static/js/2.a61b7cce.chunk.js",
+    "static/js/2.a61b7cce.chunk.js.map": "/NativeAmericanLand/static/js/2.a61b7cce.chunk.js.map",
+    "index.html": "/NativeAmericanLand/index.html",
+    "precache-manifest.c0feedad803184681b98daeef4a10200.js": "/NativeAmericanLand/precache-manifest.c0feedad803184681b98daeef4a10200.js",
+    "service-worker.js": "/NativeAmericanLand/service-worker.js",
+    "static/css/main.ca02da1d.chunk.css.map": "/NativeAmericanLand/static/css/main.ca02da1d.chunk.css.map",
+    "static/js/2.a61b7cce.chunk.js.LICENSE.txt": "/NativeAmericanLand/static/js/2.a61b7cce.chunk.js.LICENSE.txt",
+    "static/media/populationData.csv": "/NativeAmericanLand/static/media/populationData.100f0aff.csv"
+  },
+  "entrypoints": [
+    "static/js/runtime-main.c2247813.js",
+    "static/js/2.a61b7cce.chunk.js",
+    "static/css/main.ca02da1d.chunk.css",
+    "static/js/main.42410e84.chunk.js"
+  ]
+}
